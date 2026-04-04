@@ -201,7 +201,7 @@ export async function sendNotificationAction(formData: FormData) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-notification-admin-key": adminKey,
+      "x-notification-admin-key": adminKey!,
     },
     body: JSON.stringify(payload),
     cache: "no-store",
