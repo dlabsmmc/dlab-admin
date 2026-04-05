@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { sendPushNotificationWithRedirect } from "@/app/actions/push-notifications";
 
 function numberOrNull(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim();
@@ -38,6 +39,77 @@ function redirectWith(message: string, isError = false) {
   redirect(`/dashboard?${queryKey}=${encodeURIComponent(message)}`);
 }
 
+async function getNextProductId() {
+  const { data, error } = await supabaseAdmin
+    .from("products")
+    .select("id")
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    return { id: null as number | null, error: error.message };
+  }
+
+  const currentMax = Number(data?.id ?? 0);
+  return { id: (Number.isFinite(currentMax) ? currentMax : 0) + 1, error: null as string | null };
+}
+
+async function insertProductWithIdFallback(payload: Record<string, unknown>) {
+  const firstTry = await supabaseAdmin.from("products").insert(payload).select("id").single();
+
+  if (!firstTry.error) {
+    return firstTry;
+  }
+
+  const errorMessage = firstTry.error.message.toLowerCase();
+  const requiresManualId =
+    firstTry.error.code === "23502" ||
+    (errorMessage.includes("null value in column \"id\"") &&
+      errorMessage.includes("relation \"products\""));
+
+  if (!requiresManualId) {
+    return firstTry;
+  }
+
+  const nextIdResult = await getNextProductId();
+  if (nextIdResult.error || !nextIdResult.id) {
+    return {
+      data: null,
+      error: {
+        ...firstTry.error,
+        message: nextIdResult.error ?? firstTry.error.message,
+      },
+    };
+  }
+
+  const secondTry = await supabaseAdmin
+    .from("products")
+    .insert({ ...payload, id: nextIdResult.id })
+    .select("id")
+    .single();
+
+  if (!secondTry.error) {
+    return secondTry;
+  }
+
+  const duplicateId = secondTry.error.code === "23505";
+  if (!duplicateId) {
+    return secondTry;
+  }
+
+  const retryIdResult = await getNextProductId();
+  if (retryIdResult.error || !retryIdResult.id) {
+    return secondTry;
+  }
+
+  return supabaseAdmin
+    .from("products")
+    .insert({ ...payload, id: retryIdResult.id })
+    .select("id")
+    .single();
+}
+
 export async function addProductAction(formData: FormData) {
   await requireAdminSession();
 
@@ -61,11 +133,7 @@ export async function addProductAction(formData: FormData) {
     is_active: formData.get("is_active") === "on",
   };
 
-  const { data: createdProduct, error } = await supabaseAdmin
-    .from("products")
-    .insert(payload)
-    .select("id")
-    .single();
+  const { data: createdProduct, error } = await insertProductWithIdFallback(payload);
   if (error) redirectWith(error.message, true);
 
   if (variantName.length > 0 && createdProduct?.id) {
@@ -147,80 +215,5 @@ export async function deleteUserAction(formData: FormData) {
 }
 
 export async function sendNotificationAction(formData: FormData) {
-  await requireAdminSession();
-
-  const targetType = String(formData.get("target_type") ?? "all").trim();
-  const userId = String(formData.get("user_id") ?? "").trim();
-  const topic = String(formData.get("topic") ?? "").trim();
-  const title = String(formData.get("title") ?? "").trim();
-  const body = String(formData.get("body") ?? "").trim();
-  const imageUrl = stringOrNull(formData.get("image_url"));
-  const deepLink = stringOrNull(formData.get("deep_link"));
-  const orderId = stringOrNull(formData.get("order_id"));
-
-  if (!["all", "user", "topic"].includes(targetType)) {
-    redirectWith("Invalid target type", true);
-  }
-
-  if (!title || !body) {
-    redirectWith("Title and body are required", true);
-  }
-
-  if (targetType === "user" && !userId) {
-    redirectWith("User ID is required for user notifications", true);
-  }
-
-  if (targetType === "topic" && !topic) {
-    redirectWith("Topic is required for topic notifications", true);
-  }
-
-  const backendBaseUrl =
-    process.env.NOTIFICATION_BACKEND_URL ?? process.env.BACKEND_URL ?? "http://app.dezign-lab.com:3000";
-  const adminKey = process.env.NOTIFICATION_ADMIN_KEY;
-
-  console.log("[notify] backendBaseUrl:", backendBaseUrl);
-
-  if (!adminKey) {
-    redirectWith("NOTIFICATION_ADMIN_KEY is missing in admin env", true);
-  }
-
-  const payload = {
-    targetType,
-    ...(targetType === "user" ? { userId } : {}),
-    ...(targetType === "topic" ? { topic } : {}),
-    title,
-    body,
-    ...(imageUrl ? { imageUrl } : {}),
-    ...(deepLink ? { deepLink } : {}),
-    data: {
-      ...(orderId ? { order_id: orderId } : {}),
-    },
-  };
-
-  const response = await fetch(`${backendBaseUrl}/api/notifications/send`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-notification-admin-key": adminKey!,
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
-
-  const rawText = await response.text();
-  console.log("[notify] response status:", response.status);
-  console.log("[notify] response body:", rawText);
-
-  if (!response.ok) {
-    let details = "Failed to send notification";
-    try {
-      const data = JSON.parse(rawText) as { message?: string };
-      if (data?.message) details = data.message;
-    } catch {
-      // ignore json parse errors
-    }
-    redirectWith(details, true);
-  }
-
-  redirectWith("Notification sent successfully");
+  return sendPushNotificationWithRedirect(formData, "/dashboard");
 }
