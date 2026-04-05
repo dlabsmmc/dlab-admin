@@ -32,14 +32,14 @@ export default async function Home({ searchParams }: HomeProps) {
             <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
               Email
             </label>
-            <input id="email" name="email" type="email" defaultValue="admin@dlab.com" required />
+            <input id="email" name="email" type="email" required />
           </div>
 
           <div>
             <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
               Password
             </label>
-            <input id="password" name="password" type="password" defaultValue="MMCAdmin@Dlab" required />
+            <input id="password" name="password" type="password" required />
           </div>
 
           <button type="submit" className="w-full">
