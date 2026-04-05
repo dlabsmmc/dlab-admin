@@ -1,6 +1,7 @@
 import { logoutAction } from "@/app/actions/auth";
 import { requireAdminSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Bell,
@@ -240,8 +241,15 @@ export default async function CategoriesPage({ searchParams }: CategoriesPagePro
       <input id="sidebar-toggle" type="checkbox" className="peer sr-only" />
 
       <aside className="fixed inset-y-0 left-0 z-40 w-72 -translate-x-full overflow-y-auto border-r border-slate-200 bg-white px-4 py-5 transition-transform duration-200 peer-checked:translate-x-0 lg:translate-x-0">
-        <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xl font-bold text-slate-800">
-          DLab Admin
+        <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center">
+          <Image
+            src="/logo.png"
+            alt="DLab Admin"
+            width={180}
+            height={48}
+            className="mx-auto h-10 w-auto object-contain"
+            priority
+          />
         </div>
 
         <nav className="space-y-5 overflow-y-auto pb-8">

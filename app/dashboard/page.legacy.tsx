@@ -8,6 +8,7 @@ import {
 } from "@/app/dashboard/actions";
 import { requireAdminSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import Image from "next/image";
 import Link from "next/link";
 
 type DashboardProps = {
@@ -75,8 +76,15 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
       <header className="mb-6 flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">DLab Admin</h1>
-          <p className="text-sm text-slate-600">Manage products, categories, and user profiles.</p>
+          <Image
+            src="/logo.png"
+            alt="DLab Admin"
+            width={180}
+            height={48}
+            className="h-10 w-auto object-contain"
+            priority
+          />
+          <p className="mt-2 text-sm text-slate-600">Manage products, categories, and user profiles.</p>
         </div>
         <form action={logoutAction}>
           <button type="submit">Logout</button>
