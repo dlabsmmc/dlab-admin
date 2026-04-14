@@ -423,7 +423,10 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
                               <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
                                 {user.initials}
                               </div>
-                              {user.name}
+                              <div>
+                                <div className="font-medium text-slate-800">{user.name}</div>
+                                <div className="text-xs text-slate-500">UID: {user.id}</div>
+                              </div>
                             </div>
                           </td>
                           <td className="px-2 py-3">{user.email}</td>
