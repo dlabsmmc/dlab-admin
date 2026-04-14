@@ -12,12 +12,14 @@ import {
   FilePenLine,
   Filter,
   House,
+  Images,
   Layers,
   Logs,
   Settings,
   ShoppingCart,
   Star,
   Ticket,
+  Tags,
   User,
   Users,
 } from "lucide-react";
@@ -62,6 +64,15 @@ type ProductRow = {
   image: string;
 };
 
+type VariantPreviewRow = {
+  id: number;
+  productId: number;
+  name: string;
+  regularPrice: number | null;
+  salePrice: number | null;
+  stock: number | null;
+};
+
 const PAGE_SIZE = 7;
 
 const sidebarSections: SidebarSection[] = [
@@ -72,6 +83,8 @@ const sidebarSections: SidebarSection[] = [
       { href: "/users", icon: Users, text: "Users" },
       { href: "/products", icon: BoxIcon, text: "Products", active: true },
       { href: "/categories", icon: Layers, text: "Categories" },
+      { href: "/banners", icon: Images, text: "Banners" },
+      { href: "/deals", icon: Tags, text: "Deals" },
       { href: "/orders", icon: ShoppingCart, text: "Orders" },
     ],
   },
@@ -176,7 +189,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   } else if (tab === "drafts") {
     productsQuery = productsQuery.eq("is_active", false);
   } else if (tab === "out-of-stock") {
-    productsQuery = productsQuery.lte("stock_quantity", 0);
+    productsQuery = productsQuery.lte("stock", 0);
   }
 
   const productsResult = await productsQuery.range(rangeFrom, rangeTo);
@@ -191,7 +204,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     const row = item as Record<string, unknown>;
     const regularPrice = numberOrNull(row.regular_price);
     const salePrice = numberOrNull(row.sale_price);
-    const effectiveStock = numberOrNull(row.stock_quantity);
+    const effectiveStock = numberOrNull(row.stock) ?? numberOrNull(row.stock_quantity);
 
     return {
       id: Number(row.id ?? 0),
@@ -205,6 +218,35 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       image: imageFromProduct(row.images),
     };
   });
+
+  const productIds = products.map((item) => item.id).filter((id) => Number.isFinite(id) && id > 0);
+  const variantsResult =
+    productIds.length > 0
+      ? await supabaseAdmin
+          .from("product_variants")
+          .select("id,product_id,variant_name,regular_price,sale_price,stock,stock_quantity")
+          .in("product_id", productIds)
+          .order("id", { ascending: true })
+      : { data: [], error: null };
+
+  const variantRows: VariantPreviewRow[] = (variantsResult.error ? [] : variantsResult.data ?? []).map((item) => {
+    const row = item as Record<string, unknown>;
+    return {
+      id: Number(row.id ?? 0),
+      productId: Number(row.product_id ?? 0),
+      name: stringOrEmpty(row.variant_name),
+      regularPrice: numberOrNull(row.regular_price),
+      salePrice: numberOrNull(row.sale_price),
+      stock: numberOrNull(row.stock) ?? numberOrNull(row.stock_quantity),
+    };
+  });
+
+  const variantsByProduct = new Map<number, VariantPreviewRow[]>();
+  for (const variant of variantRows) {
+    const current = variantsByProduct.get(variant.productId) ?? [];
+    current.push(variant);
+    variantsByProduct.set(variant.productId, current);
+  }
 
   const showingFrom = totalEntries === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const showingTo = Math.min(currentPage * PAGE_SIZE, totalEntries);
@@ -457,6 +499,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                       </tr>
                     ) : (
                       products.map((product) => {
+                        const productVariants = variantsByProduct.get(product.id) ?? [];
                         const currentStatus: ProductTab =
                           product.stock !== null && product.stock <= 0
                             ? "out-of-stock"
@@ -489,6 +532,25 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                                 <div>
                                   <div className="font-medium text-slate-800">{product.name}</div>
                                   <div className="text-xs text-slate-500">SKU: {product.sku}</div>
+                                  {productVariants.length > 0 && (
+                                    <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+                                      {productVariants.slice(0, 2).map((variant) => {
+                                        const variantPrice = variant.salePrice ?? variant.regularPrice;
+                                        return (
+                                          <div key={variant.id}>
+                                            {variant.name || `Variant ${variant.id}`}
+                                            {" · "}
+                                            {variantPrice !== null ? currencyFormatter.format(variantPrice) : "-"}
+                                            {" · Stock "}
+                                            {variant.stock ?? "-"}
+                                          </div>
+                                        );
+                                      })}
+                                      {productVariants.length > 2 && (
+                                        <div>+{productVariants.length - 2} more variants</div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -502,7 +564,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                             </td>
                             <td className="px-2 py-3">
                               <Link
-                                href="/product-form"
+                                href={`/product-form?id=${product.id}`}
                                 className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700"
                               >
                                 Edit
