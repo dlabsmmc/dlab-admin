@@ -7,7 +7,7 @@ type BannersPageProps = {
   searchParams?: Promise<{ ok?: string; err?: string }>;
 };
 
-type BannerCategory = "banners" | "promo1" | "promo2";
+type BannerCategory = "banners" | "promo1" | "promo2" | "deals";
 
 const bannerMeta: Record<BannerCategory, { title: string; count: number; ratio: string; helper: string }> = {
   banners: {
@@ -27,6 +27,12 @@ const bannerMeta: Record<BannerCategory, { title: string; count: number; ratio: 
     count: 1,
     ratio: "388:142",
     helper: "Add exactly 1 image URL.",
+  },
+  deals: {
+    title: "Deals Banner",
+    count: 2,
+    ratio: "184:190",
+    helper: "Add exactly 2 image URLs.",
   },
 };
 
@@ -71,7 +77,7 @@ export default async function BannersPage({ searchParams }: BannersPageProps) {
   const { data, error } = await supabaseAdmin
     .from("banners")
     .select("id,category,image_urls,updated_at")
-    .in("category", ["banners", "promo1", "promo2"])
+    .in("category", ["banners", "promo1", "promo2", "deals"])
     .order("id", { ascending: true });
 
   const rows = error ? [] : data ?? [];
@@ -93,7 +99,7 @@ export default async function BannersPage({ searchParams }: BannersPageProps) {
       image: productImage(item.images),
     }));
 
-  const categories: BannerCategory[] = ["banners", "promo1", "promo2"];
+  const categories: BannerCategory[] = ["banners", "promo1", "promo2", "deals"];
 
   return (
     <AdminShell activePath="/banners" searchPlaceholder="Search banners...">
@@ -115,7 +121,7 @@ export default async function BannersPage({ searchParams }: BannersPageProps) {
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <p className="text-sm text-slate-600">
-          Configure banner image URLs for the app. All three banner blocks redirect to a single Flutter page.
+          Configure banner image URLs for the app. Banner blocks redirect to your Flutter pages.
         </p>
 
         <div className="mt-4 space-y-4">

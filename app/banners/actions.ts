@@ -5,15 +5,16 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-type BannerCategory = "banners" | "promo1" | "promo2";
+type BannerCategory = "banners" | "promo1" | "promo2" | "deals";
 
 const BANNER_RULES: Record<BannerCategory, { count: number; width: number; height: number }> = {
   banners: { count: 3, width: 389, height: 216 },
   promo1: { count: 1, width: 390, height: 134 },
   promo2: { count: 1, width: 388, height: 142 },
+  deals: { count: 2, width: 184, height: 190 },
 };
 
-function redirectWith(message: string, isError = false) {
+function redirectWith(message: string, isError = false): never {
   const queryKey = isError ? "err" : "ok";
   redirect(`/banners?${queryKey}=${encodeURIComponent(message)}`);
 }
@@ -29,7 +30,7 @@ function parseImageUrls(value: FormDataEntryValue | null) {
 }
 
 function isBannerCategory(value: string): value is BannerCategory {
-  return ["banners", "promo1", "promo2"].includes(value);
+  return ["banners", "promo1", "promo2", "deals"].includes(value);
 }
 
 function parseAndValidateUrl(rawUrl: string) {
@@ -136,12 +137,13 @@ export async function updateBannerImagesAction(formData: FormData) {
   if (!isBannerCategory(categoryRaw)) {
     redirectWith("Invalid banner category", true);
   }
+  const category: BannerCategory = categoryRaw;
 
-  const rules = BANNER_RULES[categoryRaw];
+  const rules = BANNER_RULES[category];
   const rawUrls = parseImageUrls(formData.get("image_urls"));
   if (rawUrls.length !== rules.count) {
     redirectWith(
-      `${categoryRaw} needs exactly ${rules.count} image URL${rules.count > 1 ? "s" : ""}.`,
+      `${category} needs exactly ${rules.count} image URL${rules.count > 1 ? "s" : ""}.`,
       true,
     );
   }
@@ -164,7 +166,7 @@ export async function updateBannerImagesAction(formData: FormData) {
     const isValidRatio = hasExpectedRatio(sizeResult.width, sizeResult.height, rules.width, rules.height);
     if (!isValidRatio) {
       redirectWith(
-        `${categoryRaw} image ratio must be ${rules.width}:${rules.height}. Received ${sizeResult.width}:${sizeResult.height}.`,
+        `${category} image ratio must be ${rules.width}:${rules.height}. Received ${sizeResult.width}:${sizeResult.height}.`,
         true,
       );
     }
@@ -175,7 +177,7 @@ export async function updateBannerImagesAction(formData: FormData) {
   const updateResult = await supabaseAdmin
     .from("banners")
     .update({ image_urls: imageUrlsValue })
-    .eq("category", categoryRaw)
+    .eq("category", category)
     .select("id");
 
   if (updateResult.error) {
@@ -185,7 +187,7 @@ export async function updateBannerImagesAction(formData: FormData) {
   if (!updateResult.data || updateResult.data.length === 0) {
     const { error: insertError } = await supabaseAdmin
       .from("banners")
-      .insert({ category: categoryRaw, image_urls: imageUrlsValue });
+      .insert({ category, image_urls: imageUrlsValue });
 
     if (insertError) {
       redirectWith(insertError.message, true);
@@ -193,7 +195,7 @@ export async function updateBannerImagesAction(formData: FormData) {
   }
 
   revalidatePath("/banners");
-  redirectWith(`${categoryRaw} images updated.`);
+  redirectWith(`${category} images updated.`);
 }
 
 export async function addBannerProductAction(formData: FormData) {
